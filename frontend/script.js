@@ -2,7 +2,7 @@
 // Endpoint contract taken from app.py and schemas/user_input.py:
 //   POST /predict  ->  StudentData  ->  { "Mental_Health_Score": float }
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = " https://mental-health-score-34jn.onrender.com";
 const PREDICT_URL = `${API_BASE}/predict`;
 
 // name -> how the value must be sent and validated
