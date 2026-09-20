@@ -1,203 +1,308 @@
-// Frontend for the FastAPI student mental health model.
-// Endpoint contract taken from app.py and schemas/user_input.py:
-//   POST /predict  ->  StudentData  ->  { "Mental_Health_Score": float }
+(() => {
+  "use strict";
 
-const API_BASE = " https://mental-health-score-34jn.onrender.com";
-const PREDICT_URL = `${API_BASE}/predict`;
+  const API_BASE = "http://127.0.0.1:8000";
 
-// name -> how the value must be sent and validated
-const FIELDS = {
-  Age:                     { type: "int",    min: 0 },
-  Gender:                  { type: "string" },
-  Country:                 { type: "string" },
-  Academic_Level:          { type: "string" },
-  Most_Used_Platform:      { type: "string" },
-  Purpose_Of_Use:          { type: "string" },
-  Avg_Daily_Usage_Hours:   { type: "float",  min: 0, max: 24 },
-  Daily_Unlocks:           { type: "int",    min: 0 },
-  Study_Hours:             { type: "float",  min: 0, max: 24 },
-  Physical_Activity_Hours: { type: "float",  min: 0, max: 24 },
-  Sleep_Hours_Per_Night:   { type: "float",  min: 0, max: 24 },
-  Stress_Level:            { type: "string" },
-};
+  const form = document.getElementById("predict-form");
+  const submitBtn = document.getElementById("submit-btn");
+  const resetBtn = document.getElementById("reset-btn");
+  const errorRetryBtn = document.getElementById("error-retry-btn");
 
-const form = document.getElementById("predict-form");
-const predictBtn = document.getElementById("predict-btn");
-const resetBtn = document.getElementById("reset-btn");
-const payloadPreview = document.getElementById("payload-preview");
+  const stateIdle = document.getElementById("state-idle");
+  const stateLoading = document.getElementById("state-loading");
+  const stateResult = document.getElementById("state-result");
+  const stateError = document.getElementById("state-error");
 
-const states = {
-  empty: document.getElementById("state-empty"),
-  loading: document.getElementById("state-loading"),
-  error: document.getElementById("state-error"),
-  result: document.getElementById("state-result"),
-};
+  const scoreNumberEl = document.getElementById("score-number");
+  const scoreBandEl = document.getElementById("score-band");
+  const scoreContextEl = document.getElementById("score-context");
+  const gaugeFill = document.getElementById("gauge-fill");
+  const errorLabelEl = document.getElementById("error-label");
+  const errorCopyEl = document.getElementById("error-copy");
 
-function showState(name) {
-  Object.entries(states).forEach(([key, el]) => { el.hidden = key !== name; });
-}
+  const GAUGE_ARC_LENGTH = 314; // approx pi * r(100)
 
-function clearErrors() {
-  document.querySelectorAll(".error").forEach((el) => {
-    el.textContent = "";
-    el.classList.remove("show");
-  });
-  document.querySelectorAll(".invalid").forEach((el) => el.classList.remove("invalid"));
-}
-
-function setFieldError(name, message) {
-  const slot = document.querySelector(`[data-error-for="${name}"]`);
-  const input = document.getElementById(name);
-  if (slot) {
-    slot.textContent = message;
-    slot.classList.add("show");
-  }
-  if (input) input.classList.add("invalid");
-}
-
-function showError(title, message) {
-  document.getElementById("error-title").textContent = title;
-  document.getElementById("error-message").textContent = message;
-  showState("error");
-}
-
-// Reads the form and returns { payload } or { errors }
-function buildPayload() {
-  const payload = {};
-  const errors = {};
-
-  for (const [name, rule] of Object.entries(FIELDS)) {
-    const raw = (document.getElementById(name).value ?? "").trim();
-
-    if (raw === "") {
-      errors[name] = "This field is required.";
-      continue;
-    }
-
-    if (rule.type === "string") {
-      payload[name] = raw;
-      continue;
-    }
-
-    const num = Number(raw);
-    if (!Number.isFinite(num)) {
-      errors[name] = "Enter a valid number.";
-      continue;
-    }
-    if (rule.type === "int" && !Number.isInteger(num)) {
-      errors[name] = "Enter a whole number.";
-      continue;
-    }
-    if (rule.min !== undefined && num < rule.min) {
-      errors[name] = `Must be ${rule.min} or more.`;
-      continue;
-    }
-    if (rule.max !== undefined && num > rule.max) {
-      errors[name] = `Must be ${rule.max} or less.`;
-      continue;
-    }
-    payload[name] = num;
-  }
-
-  return Object.keys(errors).length ? { errors } : { payload };
-}
-
-// Turns a FastAPI 422 body into readable text and highlights the fields
-function reportValidationErrors(body) {
-  const detail = body && body.detail;
-  if (!Array.isArray(detail)) {
-    return typeof detail === "string" ? detail : "The server rejected the submitted values.";
-  }
-  const lines = detail.map((item) => {
-    const field = Array.isArray(item.loc) ? item.loc[item.loc.length - 1] : "input";
-    const message = item.msg || "is not valid";
-    if (FIELDS[field]) setFieldError(field, message);
-    return `${field}: ${message}`;
-  });
-  return lines.join("\n");
-}
-
-function renderResult(score) {
-  document.getElementById("score-value").textContent = score.toFixed(2);
-  const pct = Math.max(0, Math.min(100, (score / 10) * 100));
-  document.getElementById("meter-fill").style.width = `${pct}%`;
-  document.getElementById("score-note").textContent =
-    "Returned by the model as Mental_Health_Score. Higher values indicate better predicted mental health.";
-  showState("result");
-}
-
-form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  clearErrors();
-
-  const { payload, errors } = buildPayload();
-  if (errors) {
-    Object.entries(errors).forEach(([name, message]) => setFieldError(name, message));
-    showError("Check the form", "Some fields need attention. See the messages next to them.");
-    document.getElementById(Object.keys(errors)[0]).focus();
-    return;
-  }
-
-  payloadPreview.textContent = JSON.stringify(payload, null, 2);
-  predictBtn.disabled = true;
-  showState("loading");
-
-  let response;
-  try {
-    response = await fetch(PREDICT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+  function drawTicks() {
+    document.querySelectorAll(".gauge-ticks").forEach((g) => {
+      g.innerHTML = "";
+      const cx = 120, cy = 140, rOuter = 100, rInner = 90;
+      for (let i = 0; i <= 10; i += 2) {
+        const angle = Math.PI - (i / 10) * Math.PI;
+        const x1 = cx + rOuter * Math.cos(angle);
+        const y1 = cy - rOuter * Math.sin(angle);
+        const x2 = cx + rInner * Math.cos(angle);
+        const y2 = cy - rInner * Math.sin(angle);
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", x1.toFixed(1));
+        line.setAttribute("y1", y1.toFixed(1));
+        line.setAttribute("x2", x2.toFixed(1));
+        line.setAttribute("y2", y2.toFixed(1));
+        g.appendChild(line);
+      }
     });
-  } catch (networkError) {
-    predictBtn.disabled = false;
-    showError(
-      "Cannot reach the API",
-      `No response from ${API_BASE}. Start the FastAPI server with "uvicorn app:app --reload" and try again.`
+  }
+  drawTicks();
+
+  const segGroup = document.getElementById("stress_level_group");
+  const stressHiddenInput = document.getElementById("stress_level");
+  segGroup.querySelectorAll(".seg-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      segGroup.querySelectorAll(".seg-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      stressHiddenInput.value = btn.dataset.value;
+      clearFieldError(stressHiddenInput);
+    });
+  });
+
+  function fieldWrapper(input) {
+    return input.closest(".field");
+  }
+
+  function setFieldError(input, message) {
+    const wrap = fieldWrapper(input);
+    if (!wrap) return;
+    wrap.classList.add("field-error");
+    const msgEl = wrap.querySelector(".error-msg");
+    if (msgEl) msgEl.textContent = message;
+  }
+
+  function clearFieldError(input) {
+    const wrap = fieldWrapper(input);
+    if (!wrap) return;
+    wrap.classList.remove("field-error");
+    const msgEl = wrap.querySelector(".error-msg");
+    if (msgEl) msgEl.textContent = "";
+  }
+
+  function clearAllErrors() {
+    form.querySelectorAll(".field").forEach((f) => f.classList.remove("field-error"));
+    form.querySelectorAll(".error-msg").forEach((m) => (m.textContent = ""));
+  }
+
+  function validate(payload) {
+    const errors = [];
+
+    const numericChecks = [
+      ["age", 10, 100],
+      ["avg_daily_usage_hours", 0, 24],
+      ["daily_unlocks", 0, Infinity],
+      ["study_hours", 0, 24],
+      ["physical_activity_hours", 0, 24],
+      ["sleep_hours_per_night", 0, 24],
+    ];
+
+    numericChecks.forEach(([key, min, max]) => {
+      const input = document.getElementById(key);
+      const val = payload[key];
+      if (val === "" || val === null || Number.isNaN(val)) {
+        errors.push([input, "This field is required."]);
+      } else if (val < min || val > max) {
+        errors.push([input, `Must be between ${min} and ${max === Infinity ? "0+" : max}.`]);
+      }
+    });
+
+    ["gender", "country", "academic_level", "most_used_platform", "purpose_of_use"].forEach((key) => {
+      const input = document.getElementById(key);
+      if (!payload[key] || String(payload[key]).trim() === "") {
+        errors.push([input, "This field is required."]);
+      }
+    });
+
+    if (!payload.stress_level) {
+      errors.push([stressHiddenInput, "Pick a stress level."]);
+    }
+
+    return errors;
+  }
+
+  function collectPayload() {
+    const fd = new FormData(form);
+    return {
+      age: fd.get("age") === "" ? NaN : parseInt(fd.get("age"), 10),
+      gender: fd.get("gender") || "",
+      country: (fd.get("country") || "").trim(),
+      academic_level: fd.get("academic_level") || "",
+      most_used_platform: fd.get("most_used_platform") || "",
+      purpose_of_use: fd.get("purpose_of_use") || "",
+      avg_daily_usage_hours: fd.get("avg_daily_usage_hours") === "" ? NaN : parseFloat(fd.get("avg_daily_usage_hours")),
+      daily_unlocks: fd.get("daily_unlocks") === "" ? NaN : parseInt(fd.get("daily_unlocks"), 10),
+      study_hours: fd.get("study_hours") === "" ? NaN : parseFloat(fd.get("study_hours")),
+      physical_activity_hours: fd.get("physical_activity_hours") === "" ? NaN : parseFloat(fd.get("physical_activity_hours")),
+      sleep_hours_per_night: fd.get("sleep_hours_per_night") === "" ? NaN : parseFloat(fd.get("sleep_hours_per_night")),
+      stress_level: fd.get("stress_level") || "",
+    };
+  }
+
+  // The <input>/<select> ids and this internal payload use lowercase
+  // snake_case, but the FastAPI StudentData schema requires PascalCase
+  // field names exactly as below. This maps one to the other right
+  // before the request is sent, and back again when reading 422 errors.
+  const SCHEMA_FIELD_MAP = {
+    age: "Age",
+    gender: "Gender",
+    country: "Country",
+    academic_level: "Academic_Level",
+    most_used_platform: "Most_Used_Platform",
+    purpose_of_use: "Purpose_Of_Use",
+    avg_daily_usage_hours: "Avg_Daily_Usage_Hours",
+    daily_unlocks: "Daily_Unlocks",
+    study_hours: "Study_Hours",
+    physical_activity_hours: "Physical_Activity_Hours",
+    sleep_hours_per_night: "Sleep_Hours_Per_Night",
+    stress_level: "Stress_Level",
+  };
+
+  function toApiPayload(payload) {
+    const apiPayload = {};
+    Object.entries(SCHEMA_FIELD_MAP).forEach(([localKey, apiKey]) => {
+      apiPayload[apiKey] = payload[localKey];
+    });
+    return apiPayload;
+  }
+
+  function showState(name) {
+    [stateIdle, stateLoading, stateResult, stateError].forEach((el) => (el.hidden = true));
+    ({ idle: stateIdle, loading: stateLoading, result: stateResult, error: stateError }[name]).hidden = false;
+  }
+
+  function setSubmitting(isSubmitting) {
+    submitBtn.disabled = isSubmitting;
+    submitBtn.classList.toggle("loading", isSubmitting);
+  }
+
+  function bandFor(score) {
+    if (score < 4) {
+      return {
+        label: "Signal: strained",
+        context: "Your responses suggest elevated strain right now. Small shifts in sleep or screen time can go a long way.",
+      };
+    }
+    if (score < 7) {
+      return {
+        label: "Signal: balanced",
+        context: "Your rhythm looks fairly steady, with some room to recover and reset.",
+      };
+    }
+    return {
+      label: "Signal: strong",
+      context: "Your habits point to a well-supported, resilient baseline. Keep it up.",
+    };
+  }
+
+  function renderResult(score) {
+    const clamped = Math.max(0, Math.min(10, score));
+    const { label, context } = bandFor(clamped);
+
+    scoreNumberEl.textContent = score.toFixed(2);
+    scoreBandEl.textContent = label;
+    scoreContextEl.textContent = context;
+
+    gaugeFill.style.transition = "none";
+    gaugeFill.style.strokeDashoffset = String(GAUGE_ARC_LENGTH);
+    requestAnimationFrame(() => {
+      gaugeFill.style.transition = "";
+      const offset = GAUGE_ARC_LENGTH * (1 - clamped / 10);
+      gaugeFill.style.strokeDashoffset = String(offset);
+    });
+
+    showState("result");
+  }
+
+  function renderError(label, copy) {
+    errorLabelEl.textContent = label;
+    errorCopyEl.textContent = copy;
+    showState("error");
+  }
+
+  function applyServerValidationErrors(detail) {
+    if (!Array.isArray(detail)) return false;
+    let matched = false;
+    const apiToLocal = Object.fromEntries(
+      Object.entries(SCHEMA_FIELD_MAP).map(([local, api]) => [api, local])
     );
-    return;
+    detail.forEach((err) => {
+      const apiField = Array.isArray(err.loc) ? err.loc[err.loc.length - 1] : null;
+      const field = apiToLocal[apiField] || apiField;
+      const input = field ? document.getElementById(field) : null;
+      const target = field === "stress_level" ? stressHiddenInput : input;
+      if (target) {
+        setFieldError(target, err.msg || "Invalid value.");
+        matched = true;
+      }
+    });
+    return matched;
   }
 
-  try {
-    let body = null;
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    clearAllErrors();
+
+    const payload = collectPayload();
+    const clientErrors = validate(payload);
+
+    if (clientErrors.length > 0) {
+      clientErrors.forEach(([input, msg]) => input && setFieldError(input, msg));
+      clientErrors[0][0]?.focus?.();
+      return;
+    }
+
+    setSubmitting(true);
+    showState("loading");
+
     try {
-      body = await response.json();
-    } catch {
-      body = null;
-    }
+      const res = await fetch(`${API_BASE}/predict`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(toApiPayload(payload)),
+      });
 
-    if (response.status === 422) {
-      showError("The server rejected the input", reportValidationErrors(body));
-      return;
-    }
+      if (res.status === 422) {
+        const body = await res.json().catch(() => null);
+        const matched = body && applyServerValidationErrors(body.detail);
+        renderError(
+          "Check your inputs",
+          matched
+            ? "The API rejected a few fields — details are marked on the form."
+            : "The API rejected this submission. Please review your inputs and try again."
+        );
+        return;
+      }
 
-    if (!response.ok) {
-      const serverMsg = body && body.detail ? JSON.stringify(body.detail) : "";
-      showError(
-        `Server error (${response.status})`,
-        serverMsg || "The prediction endpoint returned an error. Check the FastAPI terminal output."
+      if (!res.ok) {
+        let detailMsg = `The API responded with status ${res.status}.`;
+        const body = await res.json().catch(() => null);
+        if (body && typeof body.detail === "string") detailMsg = body.detail;
+        renderError("Prediction failed", detailMsg);
+        return;
+      }
+
+      const data = await res.json();
+      if (typeof data.Mental_Health_Score !== "number") {
+        renderError("Unexpected response", "The API responded, but the score was missing or malformed.");
+        return;
+      }
+
+      renderResult(data.Mental_Health_Score);
+    } catch (err) {
+      renderError(
+        "Can't reach the server",
+        `Couldn't connect to ${API_BASE}. Make sure the backend is running (uvicorn main:app --host 0.0.0.0 --port 8000 --reload) and reachable from this page.`
       );
-      return;
+    } finally {
+      setSubmitting(false);
     }
+  });
 
-    const score = body ? body.Mental_Health_Score : undefined;
-    if (typeof score !== "number" || !Number.isFinite(score)) {
-      showError(
-        "Unexpected response",
-        "The API replied without a numeric Mental_Health_Score field. The response was:\n" + JSON.stringify(body)
-      );
-      return;
-    }
+  form.querySelectorAll("input, select").forEach((el) => {
+    el.addEventListener("input", () => clearFieldError(el));
+    el.addEventListener("change", () => clearFieldError(el));
+  });
 
-    renderResult(score);
-  } finally {
-    predictBtn.disabled = false;
-  }
-});
+  resetBtn.addEventListener("click", () => {
+    showState("idle");
+  });
 
-resetBtn.addEventListener("click", () => {
-  form.reset();
-  clearErrors();
-  payloadPreview.textContent = "No request sent yet.";
-  showState("empty");
-});
+  errorRetryBtn.addEventListener("click", () => {
+    showState("idle");
+  });
+})();
