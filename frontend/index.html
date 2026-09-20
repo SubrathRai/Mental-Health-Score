@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Student Mental Health Score</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header class="masthead">
+  <h1>Student mental health score</h1>
+  <p>Enter a student's daily routine and social media habits. The model returns a predicted mental health score from your FastAPI service running at <code>http://127.0.0.1:8000</code>.</p>
+</header>
+
+<main class="layout">
+  <section class="panel">
+    <form id="predict-form" novalidate>
+      <fieldset>
+        <legend>About the student</legend>
+        <div class="grid">
+          <label class="field">
+            <span>Age</span>
+            <input type="number" id="Age" name="Age" min="0" max="120" step="1" required />
+            <small class="hint">Whole number, 0 or above</small>
+            <small class="error" data-error-for="Age"></small>
+          </label>
+
+          <label class="field">
+            <span>Gender</span>
+            <select id="Gender" name="Gender" required>
+              <option value="">Select</option>
+              <option>Male</option>
+              <option>Female</option>
+            </select>
+            <small class="error" data-error-for="Gender"></small>
+          </label>
+
+          <label class="field">
+            <span>Country</span>
+            <input type="text" id="Country" name="Country" list="country-list" autocomplete="country-name" required />
+            <small class="hint">Any country; uncommon ones are grouped as "Other" by the model</small>
+            <small class="error" data-error-for="Country"></small>
+          </label>
+          <datalist id="country-list">
+            <option>India</option><option>USA</option><option>UK</option>
+            <option>Canada</option><option>Australia</option><option>Germany</option>
+            <option>France</option><option>Japan</option><option>South Korea</option>
+            <option>Brazil</option><option>Mexico</option><option>China</option>
+            <option>Russia</option><option>Italy</option><option>Spain</option>
+            <option>Netherlands</option><option>Bangladesh</option><option>Nigeria</option>
+          </datalist>
+
+          <label class="field">
+            <span>Academic level</span>
+            <select id="Academic_Level" name="Academic_Level" required>
+              <option value="">Select</option>
+              <option>High School</option>
+              <option>Undergraduate</option>
+              <option>Graduate</option>
+            </select>
+            <small class="error" data-error-for="Academic_Level"></small>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Social media use</legend>
+        <div class="grid">
+          <label class="field">
+            <span>Most used platform</span>
+            <select id="Most_Used_Platform" name="Most_Used_Platform" required>
+              <option value="">Select</option>
+              <option>Facebook</option><option>LinkedIn</option><option>Instagram</option>
+              <option>Snapchat</option><option>Twitter</option><option>YouTube</option>
+              <option>TikTok</option><option>LINE</option><option>KakaoTalk</option>
+              <option>VKontakte</option><option>WhatsApp</option><option>WeChat</option>
+            </select>
+            <small class="error" data-error-for="Most_Used_Platform"></small>
+          </label>
+
+          <label class="field">
+            <span>Main purpose of use</span>
+            <select id="Purpose_Of_Use" name="Purpose_Of_Use" required>
+              <option value="">Select</option>
+              <option>Networking</option>
+              <option>Education</option>
+              <option>Entertainment</option>
+              <option>News</option>
+            </select>
+            <small class="error" data-error-for="Purpose_Of_Use"></small>
+          </label>
+
+          <label class="field">
+            <span>Average daily usage (hours)</span>
+            <input type="number" id="Avg_Daily_Usage_Hours" name="Avg_Daily_Usage_Hours" min="0" max="24" step="0.1" required />
+            <small class="hint">0 to 24</small>
+            <small class="error" data-error-for="Avg_Daily_Usage_Hours"></small>
+          </label>
+
+          <label class="field">
+            <span>Phone unlocks per day</span>
+            <input type="number" id="Daily_Unlocks" name="Daily_Unlocks" min="0" step="1" required />
+            <small class="hint">Whole number, 0 or above</small>
+            <small class="error" data-error-for="Daily_Unlocks"></small>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Daily routine</legend>
+        <div class="grid">
+          <label class="field">
+            <span>Study hours per day</span>
+            <input type="number" id="Study_Hours" name="Study_Hours" min="0" max="24" step="0.1" required />
+            <small class="hint">0 to 24</small>
+            <small class="error" data-error-for="Study_Hours"></small>
+          </label>
+
+          <label class="field">
+            <span>Physical activity hours per day</span>
+            <input type="number" id="Physical_Activity_Hours" name="Physical_Activity_Hours" min="0" max="24" step="0.1" required />
+            <small class="hint">0 to 24</small>
+            <small class="error" data-error-for="Physical_Activity_Hours"></small>
+          </label>
+
+          <label class="field">
+            <span>Sleep hours per night</span>
+            <input type="number" id="Sleep_Hours_Per_Night" name="Sleep_Hours_Per_Night" min="0" max="24" step="0.1" required />
+            <small class="hint">0 to 24</small>
+            <small class="error" data-error-for="Sleep_Hours_Per_Night"></small>
+          </label>
+
+          <label class="field">
+            <span>Self-reported stress level</span>
+            <select id="Stress_Level" name="Stress_Level" required>
+              <option value="">Select</option>
+              <option>Low</option>
+              <option>Medium</option>
+              <option>High</option>
+              <option>Very High</option>
+            </select>
+            <small class="error" data-error-for="Stress_Level"></small>
+          </label>
+        </div>
+      </fieldset>
+
+      <div class="actions">
+        <button type="submit" class="primary" id="predict-btn">Predict score</button>
+        <button type="button" class="ghost" id="reset-btn">Clear form</button>
+      </div>
+    </form>
+  </section>
+
+  <aside class="panel result-panel" aria-live="polite">
+    <h2>Result</h2>
+
+    <div id="state-empty" class="state">
+      <p>Fill in the form and predict to see a score here.</p>
+    </div>
+
+    <div id="state-loading" class="state" hidden>
+      <div class="spinner" role="status" aria-label="Predicting"></div>
+      <p>Contacting the model…</p>
+    </div>
+
+    <div id="state-error" class="state" hidden>
+      <h3 id="error-title">Request failed</h3>
+      <p id="error-message"></p>
+    </div>
+
+    <div id="state-result" class="state" hidden>
+      <p class="score-label">Predicted mental health score</p>
+      <p class="score" id="score-value">—</p>
+      <div class="meter"><div class="meter-fill" id="meter-fill"></div></div>
+      <p class="score-note" id="score-note"></p>
+    </div>
+
+    <details class="payload">
+      <summary>Request sent to /predict</summary>
+      <pre id="payload-preview">No request sent yet.</pre>
+    </details>
+  </aside>
+</main>
+
+<footer class="foot">
+  <p>Predictions come from your local FastAPI model service. Scores are a model estimate, not a clinical assessment.</p>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>

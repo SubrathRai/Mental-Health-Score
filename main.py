@@ -1,16 +1,34 @@
-# This is a sample Python script.
+from fastapi import FastAPI
+from schemas.user_input import StudentData, PredictionResponse
+from model.prediction import _predict
+from fastapi.middleware.cors import CORSMiddleware
+app = FastAPI()
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.post('/predict',response_model=PredictionResponse)
+def predict(data:StudentData):
+    user_input={
+        'Age':data.Age,
+        'Gender':data.Gender,
+        'Country':data.Country,
+        'Academic_Level':data.Academic_Level,
+        'Most_Used_Platform':data.Most_Used_Platform,
+        'Purpose_Of_Use':data.Purpose_Of_Use,
+        'Avg_Daily_Usage_Hours':data.Avg_Daily_Usage_Hours,
+        'Daily_Unlocks':data.Daily_Unlocks,
+        'Study_Hours':data.Study_Hours,
+        'Physical_Activity_Hours':data.Physical_Activity_Hours,
+        'Sleep_Hours_Per_Night':data.Sleep_Hours_Per_Night,
+        'Stress_Level':data.Stress_Level
+    }
+
+    prediction=_predict(user_input)
+    return PredictionResponse(Mental_Health_Score=round(prediction,2))
 
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
-
-
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
