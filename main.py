@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from schemas.user_input import StudentData, PredictionResponse
 from model.prediction import _predict
 from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI()
 
 app.add_middleware(
